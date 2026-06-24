@@ -1,0 +1,61 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>121 Private Chat</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <div class="app">
+
+
+    <header>
+        <span class="logo">121 Private Chat</span>
+        <span class="tagline">Connect One 2 One</span>
+    </header>
+
+    <div class="screen" id="screen-start">
+        <p class="intro">
+            You will be connected to a random stranger.<br/>
+      Be kind. Be curious.
+        </p>
+        <button id="btn-find"> Find a Stranger </button>
+    </div>
+    
+
+    <div class="screen hidden" id="screen-waiting">
+        <div class="spinner"></div>
+        <p>Currently Looking... </p>
+        <button id="btn-cancel" class="btn-ghost">Cancel</button>
+    </div>
+
+    <div class="screen hidden" id="screen-chat">
+
+        <div class="chat-bar">
+            <span class="connected-dot"></span>
+            <span>Connected to a stranger</span>
+            <button id="btn-skip" class="btn-ghost btn-skip">Skip &rsaquo;</button>
+
+        </div>
+    
+
+    <div class="messages" id="messages"></div>
+
+    <div class="input-row">
+        <input
+        type="text"
+        id="msg-input"
+        placeholder="Type a message..."
+        maxlength="500"
+        autocomplete="off"
+      />
+      <button id="btn-send">Send</button>
+    </div>
+</div>
+</div>
+
+    <script src="/socket.io/socket.io.js">  </script>
+    <script src="app.js"></script>
+
+</body>
+</html>

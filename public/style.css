@@ -1,0 +1,94 @@
+/* Remove default browser spacing from everything */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* Color and font tokens — change these to retheme the whole app */
+:root {
+  --bg:       #0d1117;
+  --surface:  #161b22;
+  --border:   #30363d;
+  --blue:     #1f6feb;
+  --green:    #238636;
+  --text:     #e6edf3;
+  --muted:    #8b949e;
+  --radius:   10px;
+}
+
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 15px; }
+
+/* The outer container */
+.app { max-width: 660px; margin: 0 auto; height: 100%; display: flex; flex-direction: column; padding: 0 16px; }
+
+/* Header */
+header { display: flex; align-items: baseline; gap: 12px; padding: 20px 0 14px; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+.logo   { font-size: 20px; font-weight: 700; }
+.tagline{ font-size: 13px; color: var(--muted); }
+
+/* Screens */
+.screen { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; }
+.hidden { display: none !important; }
+.intro  { color: var(--muted); text-align: center; line-height: 1.9; }
+
+/* Buttons */
+button {
+  background: var(--blue); color: #fff; border: none;
+  border-radius: var(--radius); padding: 11px 28px;
+  font-size: 14px; font-weight: 600; cursor: pointer;
+  transition: opacity .15s;
+}
+button:hover { opacity: .85; }
+button:disabled { opacity: .4; cursor: not-allowed; }
+
+.btn-ghost {
+  background: transparent; color: var(--muted);
+  border: 1px solid var(--border); font-weight: 400;
+}
+.btn-ghost:hover { color: var(--text); border-color: var(--text); }
+
+/* Spinner (CSS-only animated circle) */
+.spinner {
+  width: 38px; height: 38px;
+  border: 3px solid var(--border);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: spin .75s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Chat screen overrides — does not center content */
+#screen-chat { align-items: stretch; justify-content: flex-start; }
+
+.chat-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 10px;
+  font-size: 13px; color: var(--muted);
+}
+.connected-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+.btn-skip { margin-left: auto; padding: 4px 12px; }
+.btn-skip:hover { color: #f85149; border-color: #f85149; }
+
+/* Message list */
+.messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-bottom: 12px; }
+.messages::-webkit-scrollbar { width: 4px; }
+.messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* Message bubbles */
+.msg {
+  max-width: 72%; padding: 9px 14px;
+  border-radius: 16px; font-size: 14px;
+  line-height: 1.5; word-wrap: break-word;
+}
+.msg.you      { background: var(--blue); color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; }
+.msg.stranger { background: var(--surface); border: 1px solid var(--border); align-self: flex-start; border-bottom-left-radius: 4px; }
+
+/* System notices (e.g. "Stranger disconnected") */
+.notice { align-self: center; font-size: 12px; color: var(--muted); background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 4px 16px; }
+
+/* Input row */
+.input-row { display: flex; gap: 8px; padding: 12px 0 20px; border-top: 1px solid var(--border); }
+.input-row input { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-size: 14px; padding: 10px 14px; outline: none; transition: border-color .15s; }
+.input-row input:focus { border-color: var(--blue); }
+.input-row input:disabled { opacity: .4; cursor: not-allowed; }
