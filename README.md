@@ -1,375 +1,229 @@
-# Building a Random One-on-One Chat App (Like Omegle)
-### A Full-Stack Tutorial for Beginners
+# Building a Random Stranger Chat App
+### From Zero to Working App — One Piece at a Time
+
+---
+
+> **Who this is for:** Someone who has seen JavaScript before but has never
+> built anything that talks to the internet in real time. We go slow on
+> purpose. Every piece of code is introduced, explained with a real-world
+> comparison, and actually run before we add the next piece.
 
 ---
 
 ## Table of Contents
 
 1. [What Are We Building?](#1-what-are-we-building)
-2. [How Does It Actually Work?](#2-how-does-it-actually-work)
-3. [Tools and Setup](#3-tools-and-setup)
-4. [Project Structure](#4-project-structure)
-5. [Core Concept: What is a Socket?](#5-core-concept-what-is-a-socket)
-6. [Part 1 — The Backend (server.js)](#6-part-1--the-backend-serverjs)
-   - [Setting Up the Server](#61-setting-up-the-server)
-   - [The Waiting Room (Matchmaking)](#62-the-waiting-room-matchmaking)
-   - [Handling Chat Events](#63-handling-chat-events)
-   - [Handling Disconnects](#64-handling-disconnects)
-7. [Part 2 — The Frontend (index.html)](#7-part-2--the-frontend-indexhtml)
-   - [The HTML Structure](#71-the-html-structure)
-   - [Connecting to the Server](#72-connecting-to-the-server)
-   - [Sending and Receiving Messages](#73-sending-and-receiving-messages)
-   - [The Skip Button](#74-the-skip-button)
-8. [Part 3 — Styling (style.css)](#8-part-3--styling-stylecss)
-9. [Full Source Code](#9-full-source-code)
-   - [server.js](#serverjs)
-   - [index.html](#indexhtml)
-   - [style.css](#stylecss)
-10. [Running the App](#10-running-the-app)
-11. [Testing It Yourself](#11-testing-it-yourself)
-12. [How the Matchmaking Flow Works (Visual)](#12-how-the-matchmaking-flow-works-visual)
-13. [Common Bugs and Fixes](#13-common-bugs-and-fixes)
-14. [What to Build Next](#14-what-to-build-next)
-15. [Glossary](#15-glossary)
+2. [The Big Picture — Before Any Code](#2-the-big-picture--before-any-code)
+3. [Setting Up](#3-setting-up)
+4. [Chapter 1 — Your First Server](#4-chapter-1--your-first-server)
+5. [Chapter 2 — Serving a Web Page](#5-chapter-2--serving-a-web-page)
+6. [Chapter 3 — What is a Socket?](#6-chapter-3--what-is-a-socket)
+7. [Chapter 4 — Your First Real-Time Event](#7-chapter-4--your-first-real-time-event)
+8. [Chapter 5 — The Waiting Room](#8-chapter-5--the-waiting-room)
+9. [Chapter 6 — Sending Messages](#9-chapter-6--sending-messages)
+10. [Chapter 7 — The Frontend Chat UI](#10-chapter-7--the-frontend-chat-ui)
+11. [Chapter 8 — Wiring the UI to the Server](#11-chapter-8--wiring-the-ui-to-the-server)
+12. [Chapter 9 — Skip and Disconnect](#12-chapter-9--skip-and-disconnect)
+13. [The Full Files](#13-the-full-files)
+14. [Testing It](#14-testing-it)
+15. [What to Try Next](#15-what-to-try-next)
 
 ---
 
 ## 1. What Are We Building?
 
-We are building a **random one-on-one chat app** — the same idea as Omegle. Here is how it works from a user's perspective:
+A website where:
 
-1. You open the website
+1. You visit the page
 2. You click **"Find a Stranger"**
-3. The server puts you in a waiting room
-4. When another person clicks the same button, the server pairs you two together privately
-5. You chat in real time
-6. Either of you can click **"Skip"** to disconnect and get matched with a new stranger
+3. The server quietly looks for another person who also clicked that button
+4. The moment it finds one, it connects you both in a private chat
+5. You talk. Either of you can hit **Skip** to move on to someone new.
 
-No accounts. No usernames saved. Just two strangers, one chat.
+No usernames. No accounts. Just two people, one chat window.
 
----
-
-## 2. How Does It Actually Work?
-
-A normal website works like this:
-
-```
-You ask  -->  Server answers  -->  Done
-```
-
-That is fine for loading pages, but it breaks for real-time chat. If you send a message, the other person's browser has no way to know about it unless they refresh the page — which is terrible.
-
-The solution is **WebSockets**. A WebSocket is a permanent open connection between your browser and the server. Instead of asking and waiting, both sides can send data to each other at any time:
-
-```
-You type  -->  Your browser sends to Server  -->  Server pushes to Stranger's browser
-```
-
-No refreshing. Instant. This is exactly how chat apps, multiplayer games, and live feeds work.
-
-We will use a library called **Socket.IO** which makes WebSockets easy to work with.
+You have probably seen this on Omegle. By the end of this tutorial, you
+will have built the same core mechanic yourself.
 
 ---
 
-## 3. Tools and Setup
+## 2. The Big Picture — Before Any Code
 
-**What you need installed:**
+Before touching a keyboard, let's understand what is actually happening
+when two strangers chat in real time. We will use a real-world place to
+explain it.
 
-- **Node.js** — runs JavaScript on your computer (outside the browser). Download from nodejs.org. Check it works:
+### Think of the server as a hotel lobby
+
+Imagine a hotel with a giant lobby. The lobby has a **front desk** (the
+server) and hundreds of **guests** (browser tabs).
+
+When you arrive, the front desk gives you a **room key card**. In our
+app, this key card is called a **socket ID** — a unique code like
+`"aB3kL9x"` that identifies you and only you.
+
+```
+Guest A arrives  -->  Front desk gives them key card "aB3"
+Guest B arrives  -->  Front desk gives them key card "kL9"
+```
+
+Now, if Guest A wants to send a note to Guest B, they do not walk to
+Guest B's room directly. They hand the note to the **front desk**, and
+the front desk delivers it. That is exactly what our server does — it
+sits in the middle and routes messages.
+
+### The matchmaking is like a bulletin board in the lobby
+
+Next to the front desk there is a **bulletin board**. When you want to
+meet a stranger, you pin your room number on the board and wait.
+
+```
+Guest A pins "aB3 is looking for someone"
+                          |
+                          |  (Guest B arrives and sees the pin)
+                          |
+Guest B takes the pin --> Front desk connects aB3 and kL9 together
+                          Pin is removed from the board
+```
+
+The bulletin board holds at most one pin at a time. The moment someone
+takes it, it is gone. That is our entire matchmaking system.
+
+### What is "real time"?
+
+A normal website is like ordering food at a counter:
+
+```
+You order  -->  Kitchen cooks  -->  Food arrives  -->  Done
+```
+
+Each interaction is a separate trip. If you want to know when your order
+is ready, you have to keep walking back to the counter and asking.
+
+Real-time chat is like being on a walkie-talkie with the kitchen:
+
+```
+Connection stays open the whole time
+You can speak whenever you want
+Kitchen can call you whenever they want
+No one has to keep walking back
+```
+
+This always-open walkie-talkie connection is called a **WebSocket**.
+The library that makes WebSockets easy is called **Socket.IO**. That is
+all it is.
+
+---
+
+## 3. Setting Up
+
+### Install Node.js
+
+Node.js lets you run JavaScript on your computer — not just in a browser.
+Download it from **nodejs.org** and install it.
+
+Check it worked:
 
 ```bash
 node --version
 ```
 
-You should see something like `v20.0.0`.
+You should see something like `v20.0.0`. Any version above 16 is fine.
 
-- **npm** — comes with Node.js automatically. It is the tool that downloads libraries for you. Check it works:
+### Create your project
 
 ```bash
-npm --version
+mkdir stranger-chat
+cd stranger-chat
+npm init -y
 ```
 
-- A **text editor** — VS Code is recommended (free at code.visualstudio.com)
+`npm init -y` creates a `package.json` file. Think of it as the app's
+ID card — it records the project name and what libraries it uses.
 
-**Create your project folder and install dependencies:**
+### Install the two libraries we need
 
 ```bash
-mkdir chat-app
-cd chat-app
-npm init -y
 npm install express socket.io
 ```
 
-What those two libraries do:
-
 | Library | What it does |
 |---------|-------------|
-| `express` | Creates the web server and serves your HTML file |
-| `socket.io` | Handles real-time two-way communication between browser and server |
+| `express` | Makes it easy to create a web server in Node.js |
+| `socket.io` | Handles the real-time walkie-talkie connections |
 
-After running those commands, your folder will have a `node_modules` folder and a `package.json` file. You do not need to touch either of those — they are managed automatically.
+This creates a `node_modules` folder. Never edit anything inside it —
+it is managed automatically.
 
----
-
-## 4. Project Structure
-
-Your finished project will look like this:
+### Your folder so far
 
 ```
-chat-app/
-├── server.js          <-- the backend (runs on your computer)
-├── package.json       <-- project info (auto-generated)
-├── node_modules/      <-- installed libraries (auto-generated)
-└── public/
-    ├── index.html     <-- the webpage the user sees
-    └── style.css      <-- the visual styling
-```
-
-Create the `public` folder now:
-
-```bash
-mkdir public
+stranger-chat/
+├── package.json       <-- project ID card (auto-created)
+└── node_modules/      <-- downloaded libraries (auto-created)
 ```
 
 ---
 
-## 5. Core Concept: What is a Socket?
+## 4. Chapter 1 — Your First Server
 
-Before writing any code, let's build a mental picture of what is happening.
+Let's start with the simplest possible thing: a server that does
+nothing except start up and say hello in the terminal.
 
-Imagine a **socket** as a phone call that never hangs up. Once two people are connected, both can speak (send data) or listen (receive data) at any moment without starting a new call.
-
-In Socket.IO, everything is built around **events**. An event is just a named signal with optional data attached. You can:
-
-- **Emit** an event: send a named signal (like making a sound)
-- **Listen** for an event: react when that signal arrives (like hearing the sound)
-
-```
-Browser                           Server
-  |                                  |
-  |-- emit("send_message", "hi") --> |
-  |                                  |-- emit("receive_message", "hi") --> Stranger's browser
-  |                                  |
-```
-
-The server sits in the middle. It receives events from one person and decides who else to send them to.
-
-Here are all the events our app will use:
-
-| Event name | Direction | Meaning |
-|------------|-----------|---------|
-| `find_stranger` | Browser → Server | User clicked "Find a Stranger" |
-| `matched` | Server → Browser | You have been paired with someone |
-| `waiting` | Server → Browser | Still in the waiting room |
-| `send_message` | Browser → Server | User typed and sent a message |
-| `receive_message` | Server → Browser | A message arrived for you |
-| `stranger_disconnected` | Server → Browser | Your partner left or skipped |
-| `skip` | Browser → Server | User clicked "Skip" |
-
----
-
-## 6. Part 1 — The Backend (server.js)
-
-The backend has three jobs:
-
-1. Serve the HTML file when someone visits the site
-2. Manage the waiting room (queue of users looking for a match)
-3. Route messages between matched pairs
-
-### 6.1 Setting Up the Server
-
-Create `server.js` in your project root:
+Create a file called `server.js`:
 
 ```javascript
 // server.js
 
-// These three lines import the libraries we installed
+// "require" is how Node.js loads a library.
+// Think of it like opening a toolbox and taking out one tool.
 const express = require("express");
-const http    = require("http");
-const { Server } = require("socket.io");
 
-// Express is the web framework. Think of it as the skeleton of our server.
+// Call express() to create your app.
+// Think of "app" as the building. Right now it is an empty building.
 const app = express();
 
-// We wrap Express in a plain http server.
-// We need to do this because Socket.IO attaches itself to the http server,
-// not directly to Express.
-const server = http.createServer(app);
-
-// Create the Socket.IO server and attach it to our http server.
-// The cors option means "accept connections from any origin (any URL)".
-// This is fine for development — in production you would lock this down.
-const io = new Server(server, {
-  cors: { origin: "*" }
-});
-
-// Tell Express to serve any files in the "public" folder automatically.
-// This means when someone visits http://localhost:3000, Express looks
-// for public/index.html and sends it.
-app.use(express.static("public"));
-
-// Start listening on port 3000.
-// The callback runs once the server is ready.
-const PORT = 3000;
-server.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
+// Tell the building to open its doors on "port 3000".
+// A port is like a door number on your computer.
+// Port 3000 means: anyone who knocks on door 3000 gets let in.
+app.listen(3000, () => {
+  console.log("Server is running on http://localhost:3000");
 });
 ```
 
-**What is a port?** Think of your computer as a building and ports as the doors. Port 3000 is the door we are opening for our chat app. When you visit `http://localhost:3000`, your browser knocks on that door.
+Run it:
 
----
-
-### 6.2 The Waiting Room (Matchmaking)
-
-This is the most important part of the backend. Add this to `server.js` below the server setup:
-
-```javascript
-// The waiting room. At any point in time, this holds at most ONE user
-// who is looking for a stranger and has not been matched yet.
-// It is just a socket ID (a unique string like "aB3kL9...").
-let waitingUser = null;
-
-// "io.on("connection", ...)" runs every time a new browser connects.
-// The "socket" parameter represents that one specific user's connection.
-// Every user gets their own socket with a unique socket.id.
-io.on("connection", (socket) => {
-  console.log(`User connected: ${socket.id}`);
-
-  // ── Event: find_stranger ────────────────────────────────────────
-  // Runs when a user clicks "Find a Stranger"
-  socket.on("find_stranger", () => {
-
-    // CASE 1: Nobody is waiting. This user becomes the waiting user.
-    if (!waitingUser) {
-      waitingUser = socket.id;
-
-      // Tell this user they are in the waiting room
-      socket.emit("waiting");
-      console.log(`${socket.id} is waiting`);
-
-    // CASE 2: Someone is already waiting. Match them together.
-    } else {
-      const strangerSocketId = waitingUser;
-
-      // Clear the waiting room immediately so the next person
-      // who arrives is not accidentally matched to this same pair
-      waitingUser = null;
-
-      // "socket.to(id)" targets a specific socket by its ID.
-      // We tell the waiting user they have been matched,
-      // and we pass the NEW user's socket ID as the partner info.
-      io.to(strangerSocketId).emit("matched", { partnerId: socket.id });
-
-      // Tell the new user they have been matched too,
-      // and pass the waiting user's socket ID as the partner info.
-      socket.emit("matched", { partnerId: strangerSocketId });
-
-      // Store each user's partner on their socket object.
-      // socket.partner is a custom property we are adding — Socket.IO
-      // lets us attach any data we want to a socket object.
-      socket.partner = strangerSocketId;
-      io.sockets.sockets.get(strangerSocketId).partner = socket.id;
-
-      console.log(`Matched: ${socket.id} <--> ${strangerSocketId}`);
-    }
-  });
+```bash
+node server.js
 ```
 
-**Key idea — why do we clear `waitingUser = null` before emitting "matched"?**
+You should see:
 
-Imagine two users arrive at almost the same moment. If we do not clear the waiting slot immediately, a third user arriving a millisecond later could get matched with the same waiting user who is already matched with someone else. Clearing it first prevents that race condition.
-
----
-
-### 6.3 Handling Chat Events
-
-Still inside the `io.on("connection", ...)` block, add these event handlers:
-
-```javascript
-  // ── Event: send_message ─────────────────────────────────────────
-  // Runs when this user sends a chat message.
-  // "data" is the object the browser sent, e.g. { message: "hello" }
-  socket.on("send_message", (data) => {
-
-    // Only forward the message if this user actually has a partner.
-    // socket.partner holds the socket ID of the matched stranger.
-    if (socket.partner) {
-      io.to(socket.partner).emit("receive_message", {
-        message: data.message
-      });
-    }
-  });
-
-  // ── Event: skip ─────────────────────────────────────────────────
-  // Runs when the user clicks "Skip" to find a new stranger.
-  socket.on("skip", () => {
-
-    // If this user has a partner, tell the partner they were skipped.
-    if (socket.partner) {
-      io.to(socket.partner).emit("stranger_disconnected");
-
-      // Clear the partner's partner reference too,
-      // so they do not still think they are in a chat.
-      const partnerSocket = io.sockets.sockets.get(socket.partner);
-      if (partnerSocket) {
-        partnerSocket.partner = null;
-      }
-
-      // Clear this user's partner reference
-      socket.partner = null;
-    }
-
-    // Also remove from waiting room if they were there
-    if (waitingUser === socket.id) {
-      waitingUser = null;
-    }
-  });
+```
+Server is running on http://localhost:3000
 ```
 
+That is it. Your server is alive. It is not doing anything useful yet,
+but it is running. Press `Ctrl + C` to stop it.
+
+> **What is `localhost`?**
+> `localhost` means "this computer". When you visit
+> `http://localhost:3000` in a browser, you are visiting a website
+> running on your own machine — not the internet.
+
 ---
 
-### 6.4 Handling Disconnects
+## 5. Chapter 2 — Serving a Web Page
 
-What if a user just closes the tab instead of clicking Skip? Socket.IO fires a special built-in event called `disconnect` automatically. Add this as the final event handler inside the connection block, then close the block:
+A server that prints to the terminal is not very exciting. Let's make
+it serve an actual web page.
 
-```javascript
-  // ── Event: disconnect ───────────────────────────────────────────
-  // Socket.IO fires this automatically when a user's connection drops,
-  // whether they closed the tab, lost internet, or refreshed the page.
-  socket.on("disconnect", () => {
-    console.log(`User disconnected: ${socket.id}`);
+First, create a folder called `public`. This is where all your
+browser files live:
 
-    // If this user was waiting alone, clear them from the waiting room
-    if (waitingUser === socket.id) {
-      waitingUser = null;
-    }
-
-    // If this user was in a chat, notify their partner
-    if (socket.partner) {
-      io.to(socket.partner).emit("stranger_disconnected");
-
-      // Clear the partner's reference so they are not stuck
-      const partnerSocket = io.sockets.sockets.get(socket.partner);
-      if (partnerSocket) {
-        partnerSocket.partner = null;
-      }
-    }
-  });
-
-}); // <-- this closes io.on("connection", ...)
+```bash
+mkdir public
 ```
-
----
-
-## 7. Part 2 — The Frontend (index.html)
-
-The frontend is what the user actually sees and interacts with. It has two jobs:
-
-1. Show the right UI depending on what state you are in (waiting, chatting, or idle)
-2. Send events to the server and react to events it receives
-
-### 7.1 The HTML Structure
 
 Create `public/index.html`:
 
@@ -378,153 +232,569 @@ Create `public/index.html`:
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>StrangerChat</title>
-  <link rel="stylesheet" href="style.css" />
+  <title>Stranger Chat</title>
 </head>
 <body>
-
-  <div class="app">
-
-    <!-- Top bar with the site name -->
-    <header>
-      <span class="logo">StrangerChat</span>
-      <span class="tagline">Talk to a random stranger</span>
-    </header>
-
-    <!-- The main area switches between three "screens" based on state.
-         Only one is visible at a time, controlled by JS. -->
-
-    <!-- SCREEN 1: Start screen — shown when the user first arrives -->
-    <div class="screen" id="screen-start">
-      <p class="intro-text">
-        Click below to be matched with a random stranger. <br />
-        Be kind. Be curious.
-      </p>
-      <button class="btn-primary" id="btn-find">Find a Stranger</button>
-    </div>
-
-    <!-- SCREEN 2: Waiting screen — shown while looking for a match -->
-    <div class="screen hidden" id="screen-waiting">
-      <div class="spinner"></div>
-      <p>Looking for a stranger...</p>
-      <button class="btn-secondary" id="btn-cancel">Cancel</button>
-    </div>
-
-    <!-- SCREEN 3: Chat screen — shown when matched -->
-    <div class="screen hidden" id="screen-chat">
-
-      <div class="chat-header">
-        <span class="status-dot"></span>
-        <span>Connected to a stranger</span>
-        <button class="btn-skip" id="btn-skip">Skip</button>
-      </div>
-
-      <!-- All messages appear here -->
-      <div class="messages" id="messages"></div>
-
-      <!-- Input bar at the bottom -->
-      <div class="input-bar">
-        <input
-          type="text"
-          id="message-input"
-          placeholder="Type a message..."
-          maxlength="500"
-          autocomplete="off"
-        />
-        <button class="btn-send" id="btn-send">Send</button>
-      </div>
-
-    </div>
-
-  </div>
-
-  <!-- Load Socket.IO from the server. This is automatically served
-       by Socket.IO — you do not need to download it separately. -->
-  <script src="/socket.io/socket.io.js"></script>
-
-  <!-- Our own JavaScript comes after Socket.IO so it can use it -->
-  <script src="app.js"></script>
-
+  <h1>Hello from the server!</h1>
+  <p>If you can see this, the server is working.</p>
 </body>
 </html>
 ```
 
-Notice we reference `app.js` at the bottom. Create that file at `public/app.js` — this is where all the browser-side JavaScript lives (separated from the HTML to keep things clean).
+Now update `server.js` to serve that file:
+
+```javascript
+// server.js
+
+const express = require("express");
+const app = express();
+
+// NEW: Tell Express to serve everything in the "public" folder.
+// When someone visits http://localhost:3000, Express automatically
+// looks for public/index.html and sends it.
+// Think of it like setting up a shop window — whatever you put in
+// the "public" folder, visitors can see.
+app.use(express.static("public"));
+
+app.listen(3000, () => {
+  console.log("Server is running on http://localhost:3000");
+});
+```
+
+Run the server again (`node server.js`) and visit `http://localhost:3000`.
+You will see your HTML page.
+
+**One line of code (`express.static`) and you have a working web server.**
 
 ---
 
-### 7.2 Connecting to the Server
+## 6. Chapter 3 — What is a Socket?
 
-Create `public/app.js`:
+We need to add Socket.IO now, but before we write a single line of it,
+let's really understand what it does.
+
+### The problem with normal websites
+
+When you visit a webpage, your browser asks the server for something
+and the server answers. That is it. The connection closes.
+
+```
+Browser: "Hey server, send me the page."
+Server:  "Here it is." *hangs up*
+```
+
+For chat, this is useless. If the stranger sends you a message, your
+browser has no way to know about it — the phone has already hung up.
+
+You could make the browser ask every second: "any new messages yet?"
+But this is slow, wasteful, and feels laggy. This is called **polling**
+and nobody does it for real chat.
+
+### The WebSocket solution
+
+A WebSocket keeps the phone call open:
+
+```
+Browser connects  -->  Line stays open forever
+                       Server can call you any time
+                       You can call the server any time
+Browser disconnects  -->  Line closes
+```
+
+### Socket.IO makes this easy
+
+Socket.IO wraps WebSockets and gives you a clean system based on
+**events**. An event is just a named moment, like:
+
+```
+"someone sent a message"
+"a new user connected"
+"the stranger disconnected"
+```
+
+You can invent any event name you want. You **emit** (send) events and
+**listen** for events. That is the whole model.
+
+**Real-world comparison:** Think of Socket.IO like a two-way radio
+system at a job site. Each worker has a radio (socket). The supervisor
+(server) can broadcast to everyone, or talk to one person specifically
+by name. Workers can also talk back. Anyone can say anything at any time
+— they just have to say who it is for.
+
+---
+
+## 7. Chapter 4 — Your First Real-Time Event
+
+Let's add Socket.IO to the project and prove it works with the simplest
+possible example: the server detects when a browser connects.
+
+Update `server.js`:
 
 ```javascript
-// app.js — runs in the browser
+// server.js
 
-// io() connects to the Socket.IO server.
-// Since we are serving this file from the same server, we do not need
-// to pass a URL — Socket.IO figures it out automatically.
-const socket = io();
+const express = require("express");
 
-// ── Grab references to DOM elements ─────────────────────────────
-// document.getElementById() finds an HTML element by its id attribute.
-// We store them in variables so we don't have to look them up repeatedly.
-const screenStart   = document.getElementById("screen-start");
-const screenWaiting = document.getElementById("screen-waiting");
-const screenChat    = document.getElementById("screen-chat");
+// NEW: we need two more things.
+// "http" is a built-in Node.js module for creating HTTP servers.
+// We need it because Socket.IO attaches to an http server directly.
+const http = require("http");
 
-const btnFind    = document.getElementById("btn-find");
-const btnCancel  = document.getElementById("btn-cancel");
-const btnSkip    = document.getElementById("btn-skip");
-const btnSend    = document.getElementById("btn-send");
-const msgInput   = document.getElementById("message-input");
-const msgBox     = document.getElementById("messages");
+// We pull "Server" out of the socket.io library.
+// Capital S means it is a class — a blueprint we use to create things.
+const { Server } = require("socket.io");
 
-// ── Screen switching helper ──────────────────────────────────────
-// We only ever show one screen at a time. This function hides all
-// three screens first, then shows the one we want.
-function showScreen(screenEl) {
-  screenStart.classList.add("hidden");
-  screenWaiting.classList.add("hidden");
-  screenChat.classList.add("hidden");
-  screenEl.classList.remove("hidden");
+const app = express();
+app.use(express.static("public"));
+
+// NEW: Instead of app.listen(), we first create the http server
+// by wrapping Express inside it. Think of Express as the receptionist
+// and http as the actual building they work in.
+const server = http.createServer(app);
+
+// NEW: Create the Socket.IO server and attach it to the http server.
+// cors: { origin: "*" } means "accept connections from any webpage".
+// (Fine for development. You would restrict this in a real product.)
+const io = new Server(server, {
+  cors: { origin: "*" }
+});
+
+// NEW: This runs every single time a browser connects.
+// The "socket" parameter represents that one user's open connection.
+// Every user gets their own socket with their own unique socket.id.
+io.on("connection", (socket) => {
+  console.log("Someone connected! Their ID is: " + socket.id);
+
+  // This runs when that same user disconnects (closes the tab, etc.)
+  socket.on("disconnect", () => {
+    console.log("Someone left. Their ID was: " + socket.id);
+  });
+});
+
+// NEW: server.listen instead of app.listen
+server.listen(3000, () => {
+  console.log("Server running at http://localhost:3000");
+});
+```
+
+Now update `public/index.html` to load the Socket.IO client:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Stranger Chat</title>
+</head>
+<body>
+  <h1>Hello from the server!</h1>
+  <p>Open your browser console (F12) to see what happens.</p>
+
+  <!-- Socket.IO automatically makes this URL available.
+       You don't download it — the server serves it for you. -->
+  <script src="/socket.io/socket.io.js"></script>
+
+  <script>
+    // io() connects to the server. Since this HTML was served from
+    // localhost:3000, Socket.IO knows where to connect automatically.
+    const socket = io();
+
+    // Listen for when our connection is confirmed
+    socket.on("connect", () => {
+      console.log("I am connected! My ID is: " + socket.id);
+    });
+  </script>
+</body>
+</html>
+```
+
+Restart the server and visit `http://localhost:3000`. Open the browser
+console (press F12, then click "Console"). You should see:
+
+**In your terminal:**
+```
+Someone connected! Their ID is: aB3kL9xZ
+```
+
+**In the browser console:**
+```
+I am connected! My ID is: aB3kL9xZ
+```
+
+Close the tab. The terminal prints:
+```
+Someone left. Their ID was: aB3kL9xZ
+```
+
+**This is the foundation of the entire app.** Every feature we build
+from here is just using this connection to pass data back and forth.
+
+---
+
+## 8. Chapter 5 — The Waiting Room
+
+Now let's build the matchmaking. Think back to the hotel bulletin board:
+
+```
+First person to arrive  -->  pins their room number and waits
+Second person arrives   -->  takes the pin, connection is made
+```
+
+We store that one waiting person in a variable called `waitingUser`.
+
+Add this to `server.js`, inside the `io.on("connection", ...)` block:
+
+```javascript
+// Put this ABOVE io.on("connection", ...) — it needs to exist
+// before anyone connects.
+
+// The waiting room. Holds the socket ID of one user who is waiting.
+// null means nobody is waiting right now.
+let waitingUser = null;
+```
+
+Now add the `find_stranger` event handler inside the connection block:
+
+```javascript
+io.on("connection", (socket) => {
+  console.log("Connected: " + socket.id);
+
+  // This event fires when the user clicks "Find a Stranger"
+  socket.on("find_stranger", () => {
+
+    // CASE 1: The bulletin board is empty. No one is waiting.
+    // This user pins their ID and waits.
+    if (waitingUser === null) {
+      waitingUser = socket.id;
+
+      // Tell this user: "you are in the waiting room"
+      socket.emit("waiting");
+
+      console.log(socket.id + " is now waiting");
+
+    // CASE 2: Someone IS waiting. Time to match them.
+    } else {
+      // Grab the waiting user's ID before we clear the board
+      const partnerId = waitingUser;
+
+      // IMPORTANT: Clear the board immediately.
+      // If we wait until after sending events, a third person could
+      // connect in that tiny gap and get matched to the same pair.
+      waitingUser = null;
+
+      // Tell the waiting user they have been matched
+      // socket.to(id) sends an event to one specific socket
+      io.to(partnerId).emit("matched");
+
+      // Tell the new user they have been matched
+      socket.emit("matched");
+
+      // Store each user's partner ID on their socket object.
+      // socket.partner is a custom property — we can add anything
+      // we want to a socket object, like sticking a sticky note on it.
+      socket.partner = partnerId;
+      io.sockets.sockets.get(partnerId).partner = socket.id;
+
+      console.log("Matched: " + socket.id + " <--> " + partnerId);
+    }
+  });
+
+  socket.on("disconnect", () => {
+    console.log("Disconnected: " + socket.id);
+
+    // If the disconnected user was waiting, clear them from the board
+    if (waitingUser === socket.id) {
+      waitingUser = null;
+    }
+  });
+});
+```
+
+Test this in the browser by opening the console and typing:
+
+```javascript
+socket.emit("find_stranger");
+```
+
+In the terminal you should see the user is now waiting. Open a second
+tab and type the same thing. The terminal should show a match.
+
+---
+
+## 9. Chapter 6 — Sending Messages
+
+The match is made. Now let's route messages between them.
+
+Add two more event handlers inside the connection block, after
+`find_stranger`:
+
+```javascript
+  // User typed a message and hit Send
+  socket.on("send_message", (data) => {
+
+    // data is whatever the browser sent us.
+    // We are expecting: { message: "hello" }
+
+    // Only forward it if this user has a partner.
+    // socket.partner is the sticky note we put on earlier.
+    if (socket.partner) {
+      io.to(socket.partner).emit("receive_message", {
+        message: data.message
+      });
+    }
+  });
+```
+
+That is the entire message routing system. The server receives a message
+from one socket, looks up who their partner is, and forwards it. It
+never stores the message — it just passes it along, like handing a note
+across a table.
+
+---
+
+## 10. Chapter 7 — The Frontend Chat UI
+
+Now let's build the actual chat interface the user sees. We will build
+it in three screens:
+
+- **Screen 1:** The start screen with the "Find a Stranger" button
+- **Screen 2:** The waiting screen with a spinner
+- **Screen 3:** The chat screen with messages and a Skip button
+
+Replace `public/index.html` with:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>StrangerChat</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <header>
+    <span class="logo">StrangerChat</span>
+    <span class="tagline">Talk to a random stranger</span>
+  </header>
+
+  <!-- SCREEN 1: Start -->
+  <!-- This is visible by default. The others start hidden. -->
+  <div class="screen" id="screen-start">
+    <p class="intro">
+      You will be connected to a random stranger.<br/>
+      Be kind. Be curious.
+    </p>
+    <button id="btn-find">Find a Stranger</button>
+  </div>
+
+  <!-- SCREEN 2: Waiting -->
+  <div class="screen hidden" id="screen-waiting">
+    <div class="spinner"></div>
+    <p>Looking for a stranger...</p>
+    <button id="btn-cancel" class="btn-ghost">Cancel</button>
+  </div>
+
+  <!-- SCREEN 3: Chat -->
+  <div class="screen hidden" id="screen-chat">
+
+    <div class="chat-bar">
+      <span class="connected-dot"></span>
+      <span>Connected to a stranger</span>
+      <button id="btn-skip" class="btn-ghost btn-skip">Skip &rsaquo;</button>
+    </div>
+
+    <!-- Messages appear here -->
+    <div class="messages" id="messages"></div>
+
+    <!-- Input at the bottom -->
+    <div class="input-row">
+      <input
+        type="text"
+        id="msg-input"
+        placeholder="Type a message..."
+        maxlength="500"
+        autocomplete="off"
+      />
+      <button id="btn-send">Send</button>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- Load Socket.IO (served automatically by our server) -->
+<script src="/socket.io/socket.io.js"></script>
+<!-- Our own browser JS -->
+<script src="app.js"></script>
+</body>
+</html>
+```
+
+Now create `public/style.css`:
+
+```css
+/* Remove default browser spacing from everything */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* Color and font tokens — change these to retheme the whole app */
+:root {
+  --bg:       #0d1117;
+  --surface:  #161b22;
+  --border:   #30363d;
+  --blue:     #1f6feb;
+  --green:    #238636;
+  --text:     #e6edf3;
+  --muted:    #8b949e;
+  --radius:   10px;
 }
 
-// ── Button: Find a Stranger ──────────────────────────────────────
-btnFind.addEventListener("click", () => {
-  // Tell the server we are looking for someone
-  socket.emit("find_stranger");
-  // Switch the UI to the waiting screen
-  showScreen(screenWaiting);
-});
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 15px; }
 
-// ── Button: Cancel (while waiting) ──────────────────────────────
-btnCancel.addEventListener("click", () => {
-  socket.emit("skip");         // reuse the skip event to remove from queue
-  showScreen(screenStart);
-});
+/* The outer container */
+.app { max-width: 660px; margin: 0 auto; height: 100%; display: flex; flex-direction: column; padding: 0 16px; }
+
+/* Header */
+header { display: flex; align-items: baseline; gap: 12px; padding: 20px 0 14px; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+.logo   { font-size: 20px; font-weight: 700; }
+.tagline{ font-size: 13px; color: var(--muted); }
+
+/* Screens */
+.screen { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; }
+.hidden { display: none !important; }
+.intro  { color: var(--muted); text-align: center; line-height: 1.9; }
+
+/* Buttons */
+button {
+  background: var(--blue); color: #fff; border: none;
+  border-radius: var(--radius); padding: 11px 28px;
+  font-size: 14px; font-weight: 600; cursor: pointer;
+  transition: opacity .15s;
+}
+button:hover { opacity: .85; }
+button:disabled { opacity: .4; cursor: not-allowed; }
+
+.btn-ghost {
+  background: transparent; color: var(--muted);
+  border: 1px solid var(--border); font-weight: 400;
+}
+.btn-ghost:hover { color: var(--text); border-color: var(--text); }
+
+/* Spinner (CSS-only animated circle) */
+.spinner {
+  width: 38px; height: 38px;
+  border: 3px solid var(--border);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: spin .75s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Chat screen overrides — does not center content */
+#screen-chat { align-items: stretch; justify-content: flex-start; }
+
+.chat-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 10px;
+  font-size: 13px; color: var(--muted);
+}
+.connected-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+.btn-skip { margin-left: auto; padding: 4px 12px; }
+.btn-skip:hover { color: #f85149; border-color: #f85149; }
+
+/* Message list */
+.messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-bottom: 12px; }
+.messages::-webkit-scrollbar { width: 4px; }
+.messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* Message bubbles */
+.msg {
+  max-width: 72%; padding: 9px 14px;
+  border-radius: 16px; font-size: 14px;
+  line-height: 1.5; word-wrap: break-word;
+}
+.msg.you      { background: var(--blue); color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; }
+.msg.stranger { background: var(--surface); border: 1px solid var(--border); align-self: flex-start; border-bottom-left-radius: 4px; }
+
+/* System notices (e.g. "Stranger disconnected") */
+.notice { align-self: center; font-size: 12px; color: var(--muted); background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 4px 16px; }
+
+/* Input row */
+.input-row { display: flex; gap: 8px; padding: 12px 0 20px; border-top: 1px solid var(--border); }
+.input-row input { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-size: 14px; padding: 10px 14px; outline: none; transition: border-color .15s; }
+.input-row input:focus { border-color: var(--blue); }
+.input-row input:disabled { opacity: .4; cursor: not-allowed; }
 ```
 
 ---
 
-### 7.3 Sending and Receiving Messages
+## 11. Chapter 8 — Wiring the UI to the Server
 
-Still in `app.js`, add the messaging logic:
+Now we connect the HTML to Socket.IO. Create `public/app.js`:
+
+### Step 1 — Connect and grab elements
 
 ```javascript
-// ── Helper: add a message bubble to the chat box ─────────────────
-// "sender" is either "you" or "stranger" — it controls the styling.
+// public/app.js
+
+// Connect to the server. Since this file is served from localhost:3000,
+// Socket.IO knows where to connect automatically.
+const socket = io();
+
+// Grab references to every element we need to control.
+// Think of this like picking up your tools before starting work.
+const screenStart   = document.getElementById("screen-start");
+const screenWaiting = document.getElementById("screen-waiting");
+const screenChat    = document.getElementById("screen-chat");
+const btnFind       = document.getElementById("btn-find");
+const btnCancel     = document.getElementById("btn-cancel");
+const btnSkip       = document.getElementById("btn-skip");
+const btnSend       = document.getElementById("btn-send");
+const msgInput      = document.getElementById("msg-input");
+const msgBox        = document.getElementById("messages");
+```
+
+### Step 2 — The screen switcher
+
+We have three screens but only one should be visible at a time. This
+helper function hides all three then reveals the one we want:
+
+```javascript
+// Hide all screens, then show the one passed in.
+// classList.add/remove changes CSS classes on an element.
+// The "hidden" class in our CSS uses display:none to hide things.
+function showScreen(el) {
+  screenStart.classList.add("hidden");
+  screenWaiting.classList.add("hidden");
+  screenChat.classList.add("hidden");
+  el.classList.remove("hidden");
+}
+```
+
+### Step 3 — The message helpers
+
+```javascript
+// Creates a message bubble and adds it to the chat box.
+// "sender" is "you" or "stranger" — controls which side it appears on
+// and what color it gets (see the CSS .msg.you and .msg.stranger rules).
 function addMessage(text, sender) {
   const div = document.createElement("div");
-  div.classList.add("message", sender);
+  div.classList.add("msg", sender);
   div.textContent = text;
   msgBox.appendChild(div);
 
-  // Auto-scroll to the newest message
+  // Auto-scroll to the bottom so the newest message is always visible
   msgBox.scrollTop = msgBox.scrollHeight;
 }
 
-// ── Helper: add a system notice (e.g. "Stranger disconnected") ───
+// Creates a small centered notice like "You are now connected"
 function addNotice(text) {
   const div = document.createElement("div");
   div.classList.add("notice");
@@ -532,390 +802,163 @@ function addNotice(text) {
   msgBox.appendChild(div);
   msgBox.scrollTop = msgBox.scrollHeight;
 }
+```
 
-// ── Button: Send ─────────────────────────────────────────────────
+### Step 4 — Button listeners
+
+```javascript
+// When the user clicks "Find a Stranger":
+btnFind.addEventListener("click", () => {
+  socket.emit("find_stranger"); // Tell the server we are looking
+  showScreen(screenWaiting);   // Switch to the waiting screen
+});
+
+// When the user clicks "Cancel" while waiting:
+btnCancel.addEventListener("click", () => {
+  socket.emit("skip");       // Tell the server to remove us from the queue
+  showScreen(screenStart);   // Go back to the start screen
+});
+```
+
+### Step 5 — Sending a message
+
+```javascript
 function sendMessage() {
   const text = msgInput.value.trim();
+  if (!text) return; // Ignore empty sends
 
-  // Do not send empty messages
-  if (!text) return;
-
-  // Show the message on YOUR screen immediately (optimistic update).
-  // We do not wait for the server to echo it back — it feels faster.
+  // Show the message on your own screen immediately.
+  // We do not wait for the server to confirm it — it feels snappier.
   addMessage(text, "you");
 
-  // Send the message to the server, which forwards it to the stranger.
+  // Send it to the server, which forwards it to the stranger.
   socket.emit("send_message", { message: text });
 
-  // Clear the input box
+  // Clear the input and move focus back so you can keep typing
   msgInput.value = "";
   msgInput.focus();
 }
 
-// Allow pressing Enter to send (as well as clicking the button)
+// Both the button and the Enter key trigger sendMessage
 btnSend.addEventListener("click", sendMessage);
 msgInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") sendMessage();
 });
-
-// ── Socket event: receive_message ────────────────────────────────
-// Runs when the server forwards a message from the stranger to us.
-socket.on("receive_message", (data) => {
-  addMessage(data.message, "stranger");
-});
 ```
 
----
-
-### 7.4 The Skip Button
-
-Add the remaining socket event handlers to `app.js`:
+### Step 6 — Listening for server events
 
 ```javascript
-// ── Socket event: matched ─────────────────────────────────────────
-// Runs when the server has found us a stranger.
+// Server says: "you have been matched with someone"
 socket.on("matched", () => {
-  // Clear any old messages from a previous chat
-  msgBox.innerHTML = "";
-  addNotice("You are now connected to a stranger. Say hi!");
+  msgBox.innerHTML = "";  // Clear any messages from a previous chat
+  addNotice("Connected to a stranger. Say hi!");
   showScreen(screenChat);
   msgInput.focus();
 });
 
-// ── Socket event: waiting ─────────────────────────────────────────
-// Runs if we clicked "Find" but nobody else is waiting yet.
-// The UI is already showing the waiting screen, so nothing extra to do.
-socket.on("waiting", () => {
-  // Already handled by the UI — just confirming server received our request
+// Server says: "here is a message from your stranger"
+socket.on("receive_message", (data) => {
+  addMessage(data.message, "stranger");
 });
 
-// ── Socket event: stranger_disconnected ──────────────────────────
-// Runs when the stranger leaves or skips us.
+// Server says: "the stranger left"
 socket.on("stranger_disconnected", () => {
   addNotice("Stranger has disconnected.");
+  msgInput.disabled = true;  // Can't type into a dead chat
+  btnSend.disabled  = true;
 
-  // Disable the input so the user cannot type into a dead chat
-  msgInput.disabled  = true;
-  btnSend.disabled   = true;
-
-  // Show a "Find New Stranger" button inside the chat area
-  const newBtn = document.createElement("button");
-  newBtn.textContent = "Find a New Stranger";
-  newBtn.className   = "btn-primary notice-btn";
-  newBtn.addEventListener("click", () => {
+  // Add a button inside the chat area to find a new stranger
+  const btn = document.createElement("button");
+  btn.textContent = "Find a New Stranger";
+  btn.style.marginTop = "12px";
+  btn.addEventListener("click", () => {
     msgInput.disabled = false;
     btnSend.disabled  = false;
     socket.emit("find_stranger");
     showScreen(screenWaiting);
   });
-  msgBox.appendChild(newBtn);
+  msgBox.appendChild(btn);
   msgBox.scrollTop = msgBox.scrollHeight;
 });
+```
 
-// ── Button: Skip ─────────────────────────────────────────────────
+---
+
+## 12. Chapter 9 — Skip and Disconnect
+
+The last piece: what happens when someone clicks Skip, or closes the
+tab entirely.
+
+### Add the skip event handler to server.js
+
+Inside the `io.on("connection", ...)` block, add:
+
+```javascript
+  socket.on("skip", () => {
+
+    // If this user is in the waiting room, remove them
+    if (waitingUser === socket.id) {
+      waitingUser = null;
+    }
+
+    // If this user is in a chat, notify their partner
+    if (socket.partner) {
+      io.to(socket.partner).emit("stranger_disconnected");
+
+      // Find the partner's socket object and clear their partner reference
+      const partnerSocket = io.sockets.sockets.get(socket.partner);
+      if (partnerSocket) {
+        partnerSocket.partner = null;
+      }
+
+      // Clear this user's partner reference too
+      socket.partner = null;
+    }
+  });
+```
+
+### Update the disconnect handler in server.js
+
+The `disconnect` event already exists — update it to also handle the
+partner notification:
+
+```javascript
+  socket.on("disconnect", () => {
+    console.log("Disconnected: " + socket.id);
+
+    if (waitingUser === socket.id) {
+      waitingUser = null;
+    }
+
+    // If they were in a chat, their partner needs to know
+    if (socket.partner) {
+      io.to(socket.partner).emit("stranger_disconnected");
+      const partnerSocket = io.sockets.sockets.get(socket.partner);
+      if (partnerSocket) partnerSocket.partner = null;
+    }
+  });
+```
+
+### Add the Skip button handler in app.js
+
+```javascript
 btnSkip.addEventListener("click", () => {
-  socket.emit("skip");
-
-  // Re-enable input for the next chat
-  msgInput.disabled = false;
+  socket.emit("skip");               // Tell the server
+  msgInput.disabled = false;         // Re-enable the input
   btnSend.disabled  = false;
-
-  // Immediately look for a new stranger
-  socket.emit("find_stranger");
+  socket.emit("find_stranger");      // Immediately look for someone new
   showScreen(screenWaiting);
 });
 ```
 
 ---
 
-## 8. Part 3 — Styling (style.css)
+## 13. The Full Files
 
-Create `public/style.css`. The comments explain what each section does:
-
-```css
-/* ── Reset: remove default browser spacing ──────────────────── */
-*, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-/* ── Variables: define reusable color/size tokens ───────────── */
-:root {
-  --bg:       #0d1117;
-  --surface:  #161b22;
-  --border:   #30363d;
-  --accent:   #238636;
-  --accent2:  #1f6feb;
-  --text:     #e6edf3;
-  --muted:    #8b949e;
-  --you:      #1f6feb;
-  --stranger: #238636;
-  --radius:   10px;
-  --font:     'Segoe UI', system-ui, sans-serif;
-}
-
-/* ── Base ────────────────────────────────────────────────────── */
-html, body {
-  height: 100%;
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font);
-  font-size: 15px;
-}
-
-/* ── App container ───────────────────────────────────────────── */
-.app {
-  max-width: 680px;
-  margin: 0 auto;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  padding: 0 12px;
-}
-
-/* ── Header ──────────────────────────────────────────────────── */
-header {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  padding: 20px 0 16px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 20px;
-}
-
-.logo {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--text);
-  letter-spacing: -0.5px;
-}
-
-.tagline {
-  font-size: 13px;
-  color: var(--muted);
-}
-
-/* ── Screens ─────────────────────────────────────────────────── */
-/* Every screen fills the remaining vertical space */
-.screen {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 20px;
-  text-align: center;
-}
-
-/* The "hidden" class hides an element completely */
-.hidden {
-  display: none !important;
-}
-
-/* ── Start screen ────────────────────────────────────────────── */
-.intro-text {
-  color: var(--muted);
-  font-size: 15px;
-  line-height: 1.8;
-}
-
-/* ── Buttons ─────────────────────────────────────────────────── */
-.btn-primary {
-  background: var(--accent2);
-  color: #fff;
-  border: none;
-  border-radius: var(--radius);
-  padding: 12px 32px;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.15s;
-}
-
-.btn-primary:hover  { opacity: 0.85; }
-
-.btn-secondary {
-  background: transparent;
-  color: var(--muted);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 8px 24px;
-  font-size: 14px;
-  cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
-}
-
-.btn-secondary:hover { border-color: var(--text); color: var(--text); }
-
-/* ── Waiting spinner ─────────────────────────────────────────── */
-/* A CSS-only spinning circle — no image needed */
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid var(--border);
-  border-top-color: var(--accent2);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-/* ── Chat screen ─────────────────────────────────────────────── */
-/* The chat screen does NOT center its content — it fills the space */
-#screen-chat {
-  align-items: stretch;
-  justify-content: flex-start;
-}
-
-.chat-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  margin-bottom: 12px;
-  font-size: 14px;
-  color: var(--muted);
-}
-
-/* The green dot next to "Connected to a stranger" */
-.status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--accent);
-  flex-shrink: 0;
-}
-
-.btn-skip {
-  margin-left: auto;   /* pushes it to the right side */
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--muted);
-  padding: 4px 14px;
-  font-size: 13px;
-  cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
-}
-
-.btn-skip:hover { border-color: #f85149; color: #f85149; }
-
-/* ── Message area ────────────────────────────────────────────── */
-.messages {
-  flex: 1;              /* takes up all available vertical space */
-  overflow-y: auto;     /* scrollable when messages overflow */
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 4px 0 12px;
-}
-
-/* Scrollbar styling */
-.messages::-webkit-scrollbar       { width: 4px; }
-.messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-/* ── Message bubbles ─────────────────────────────────────────── */
-.message {
-  max-width: 70%;
-  padding: 9px 14px;
-  border-radius: 16px;
-  font-size: 14px;
-  line-height: 1.5;
-  word-wrap: break-word;
-}
-
-/* Your messages: blue, on the right side */
-.message.you {
-  background: var(--you);
-  color: #fff;
-  align-self: flex-end;
-  border-bottom-right-radius: 4px;
-}
-
-/* Stranger's messages: green, on the left side */
-.message.stranger {
-  background: var(--surface);
-  border: 1px solid var(--stranger);
-  color: var(--text);
-  align-self: flex-start;
-  border-bottom-left-radius: 4px;
-}
-
-/* System notices: centered, muted */
-.notice {
-  align-self: center;
-  font-size: 12px;
-  color: var(--muted);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 4px 14px;
-}
-
-/* "Find New Stranger" button that appears in the message area */
-.notice-btn {
-  align-self: center;
-  margin-top: 6px;
-  padding: 10px 24px;
-  font-size: 14px;
-}
-
-/* ── Input bar ───────────────────────────────────────────────── */
-.input-bar {
-  display: flex;
-  gap: 8px;
-  padding: 12px 0 20px;
-  border-top: 1px solid var(--border);
-}
-
-.input-bar input {
-  flex: 1;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  color: var(--text);
-  font-size: 14px;
-  padding: 10px 14px;
-  outline: none;
-  transition: border-color 0.15s;
-}
-
-.input-bar input:focus {
-  border-color: var(--accent2);
-}
-
-.input-bar input:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.btn-send {
-  background: var(--accent2);
-  color: #fff;
-  border: none;
-  border-radius: var(--radius);
-  padding: 10px 20px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.15s;
-}
-
-.btn-send:hover    { opacity: 0.85; }
-.btn-send:disabled { opacity: 0.4; cursor: not-allowed; }
-```
-
----
-
-## 9. Full Source Code
-
-Here is each file in its entirety, clean and ready to copy.
+Here are all four complete files, clean and ready to copy. Only read
+this section after going through the chapters — the explanations are
+above, not repeated here.
 
 ### server.js
 
@@ -933,21 +976,23 @@ app.use(express.static("public"));
 let waitingUser = null;
 
 io.on("connection", (socket) => {
-  console.log(`Connected: ${socket.id}`);
+  console.log("Connected: " + socket.id);
 
   socket.on("find_stranger", () => {
-    if (!waitingUser) {
+    if (waitingUser === null) {
       waitingUser = socket.id;
       socket.emit("waiting");
     } else {
       const partnerId = waitingUser;
       waitingUser = null;
 
-      io.to(partnerId).emit("matched", { partnerId: socket.id });
-      socket.emit("matched", { partnerId });
+      io.to(partnerId).emit("matched");
+      socket.emit("matched");
 
       socket.partner = partnerId;
       io.sockets.sockets.get(partnerId).partner = socket.id;
+
+      console.log("Matched: " + socket.id + " <--> " + partnerId);
     }
   });
 
@@ -958,17 +1003,18 @@ io.on("connection", (socket) => {
   });
 
   socket.on("skip", () => {
+    if (waitingUser === socket.id) waitingUser = null;
+
     if (socket.partner) {
       io.to(socket.partner).emit("stranger_disconnected");
       const partnerSocket = io.sockets.sockets.get(socket.partner);
       if (partnerSocket) partnerSocket.partner = null;
       socket.partner = null;
     }
-    if (waitingUser === socket.id) waitingUser = null;
   });
 
   socket.on("disconnect", () => {
-    console.log(`Disconnected: ${socket.id}`);
+    console.log("Disconnected: " + socket.id);
     if (waitingUser === socket.id) waitingUser = null;
     if (socket.partner) {
       io.to(socket.partner).emit("stranger_disconnected");
@@ -978,59 +1024,10 @@ io.on("connection", (socket) => {
   });
 });
 
-server.listen(3000, () => console.log("Server at http://localhost:3000"));
+server.listen(3000, () => console.log("Running at http://localhost:3000"));
 ```
 
-### index.html
-
-```html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>StrangerChat</title>
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-  <div class="app">
-    <header>
-      <span class="logo">StrangerChat</span>
-      <span class="tagline">Talk to a random stranger</span>
-    </header>
-
-    <div class="screen" id="screen-start">
-      <p class="intro-text">Click below to be matched with a random stranger.<br/>Be kind. Be curious.</p>
-      <button class="btn-primary" id="btn-find">Find a Stranger</button>
-    </div>
-
-    <div class="screen hidden" id="screen-waiting">
-      <div class="spinner"></div>
-      <p>Looking for a stranger...</p>
-      <button class="btn-secondary" id="btn-cancel">Cancel</button>
-    </div>
-
-    <div class="screen hidden" id="screen-chat">
-      <div class="chat-header">
-        <span class="status-dot"></span>
-        <span>Connected to a stranger</span>
-        <button class="btn-skip" id="btn-skip">Skip</button>
-      </div>
-      <div class="messages" id="messages"></div>
-      <div class="input-bar">
-        <input type="text" id="message-input" placeholder="Type a message..." maxlength="500" autocomplete="off" />
-        <button class="btn-send" id="btn-send">Send</button>
-      </div>
-    </div>
-  </div>
-
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="app.js"></script>
-</body>
-</html>
-```
-
-### app.js
+### public/app.js
 
 ```javascript
 const socket = io();
@@ -1042,7 +1039,7 @@ const btnFind       = document.getElementById("btn-find");
 const btnCancel     = document.getElementById("btn-cancel");
 const btnSkip       = document.getElementById("btn-skip");
 const btnSend       = document.getElementById("btn-send");
-const msgInput      = document.getElementById("message-input");
+const msgInput      = document.getElementById("msg-input");
 const msgBox        = document.getElementById("messages");
 
 function showScreen(el) {
@@ -1052,7 +1049,7 @@ function showScreen(el) {
 
 function addMessage(text, sender) {
   const div = document.createElement("div");
-  div.classList.add("message", sender);
+  div.classList.add("msg", sender);
   div.textContent = text;
   msgBox.appendChild(div);
   msgBox.scrollTop = msgBox.scrollHeight;
@@ -1098,7 +1095,7 @@ btnSkip.addEventListener("click", () => {
 
 socket.on("matched", () => {
   msgBox.innerHTML = "";
-  addNotice("You are now connected to a stranger. Say hi!");
+  addNotice("Connected to a stranger. Say hi!");
   showScreen(screenChat);
   msgInput.focus();
 });
@@ -1111,7 +1108,7 @@ socket.on("stranger_disconnected", () => {
   btnSend.disabled  = true;
   const btn = document.createElement("button");
   btn.textContent = "Find a New Stranger";
-  btn.className   = "btn-primary notice-btn";
+  btn.style.marginTop = "12px";
   btn.addEventListener("click", () => {
     msgInput.disabled = false;
     btnSend.disabled  = false;
@@ -1125,126 +1122,68 @@ socket.on("stranger_disconnected", () => {
 
 ---
 
-## 10. Running the App
+## 14. Testing It
 
-Open your terminal, navigate into the project folder, and run:
+Run the server:
 
 ```bash
 node server.js
 ```
 
-You should see:
+Open **two separate browser windows** (not tabs — actual separate
+windows) both pointed at `http://localhost:3000`.
+
+Click "Find a Stranger" in Window 1. The terminal shows it waiting.
+Click "Find a Stranger" in Window 2. Both windows jump to the chat
+screen. Type in one — it appears in the other.
+
+To test Skip: click Skip in one window. The other window shows
+"Stranger has disconnected."
+
+### Watching it in the terminal
+
+The terminal is your best debugging tool. Every connection and
+disconnection is logged. You should see something like:
 
 ```
-Server running at http://localhost:3000
+Running at http://localhost:3000
+Connected: Xt9mA
+Connected: bK4rZ
+Matched: Xt9mA <--> bK4rZ
+Disconnected: Xt9mA
 ```
 
-Open `http://localhost:3000` in your browser. The app is live.
+If something is not working, look here first.
 
 ---
 
-## 11. Testing It Yourself
+## 15. What to Try Next
 
-Since a chat app needs two people, you can fake this on one computer by opening **two browser windows** side by side:
+Now that you have a working foundation, here are natural next steps
+from easy to hard:
 
-1. Open `http://localhost:3000` in Window 1 — click "Find a Stranger"
-2. Open `http://localhost:3000` in Window 2 — click "Find a Stranger"
-3. Both windows should immediately show "Connected to a stranger"
-4. Type in one window and watch it appear in the other
+**Easy — try these first**
+- Add a timestamp next to each message bubble (use `new Date().toLocaleTimeString()`)
+- Change the colour scheme by editing the CSS variables at the top of `style.css`
+- Limit the waiting room to show a "server is busy" message if too many people are waiting
 
-You can also open the browser's **DevTools** (press F12) and go to the **Console** tab to see any errors. The server terminal will log connections and disconnections.
+**Medium — once the basics feel solid**
+- Add a "Stranger is typing..." indicator using a `typing` event emitted on every keypress
+- Count connected users and display the number in the header
+- Let users enter a topic (like "music" or "gaming") and only match people who share one
 
----
-
-## 12. How the Matchmaking Flow Works (Visual)
-
-```
-User A opens the site
-        |
-        | clicks "Find a Stranger"
-        |
-        v
-Server: waitingUser is empty
-        --> set waitingUser = A
-        --> emit "waiting" to A
-
-        A is now waiting...
-
-                        User B opens the site
-                                |
-                                | clicks "Find a Stranger"
-                                |
-                                v
-                        Server: waitingUser = A (someone is waiting!)
-                                --> set waitingUser = null (clear it)
-                                --> emit "matched" to A
-                                --> emit "matched" to B
-                                --> A.partner = B, B.partner = A
-
-        A sees "Connected"      B sees "Connected"
-
-A types "hello"
-        |
-        | emit "send_message" { message: "hello" }
-        |
-        v
-Server receives from A
-        --> emit "receive_message" to B (A.partner)
-
-                                B sees "hello" appear
-```
+**Hard — when you want a real challenge**
+- Add usernames stored in the browser's localStorage
+- Save chat logs so the user can download them before leaving
+- Deploy to the internet using a free service like Railway so strangers on the internet can actually use it
 
 ---
 
-## 13. Common Bugs and Fixes
-
-| What went wrong | Why it happened | How to fix it |
-|-----------------|-----------------|---------------|
-| Page loads but "Find a Stranger" does nothing | Socket.IO is not connecting | Make sure `node server.js` is running. Check the browser console for errors. |
-| Both windows stay on "Looking for a stranger" | They are not hitting the same server | Make sure both windows use `http://localhost:3000`, not `file://` |
-| Messages only appear for the sender, not the receiver | `socket.partner` is null | This usually means the skip/disconnect event cleared the partner before the message was sent. Check the order of your event handlers. |
-| Clicking Skip sends you back to waiting but never matches | `waitingUser` is not being cleared | Confirm your `skip` handler sets `waitingUser = null` when the user was in the queue |
-| App works for 2 people but breaks with 3 | That is correct behavior — each user has exactly one partner | The third user waits alone until a fourth joins |
-| `Cannot find module 'socket.io'` | npm install did not run | Run `npm install express socket.io` in the project folder |
-
----
-
-## 14. What to Build Next
-
-Once the basic chat is working, here are real features you can add in order of difficulty:
-
-**Beginner**
-- Add a character counter below the input (`250 / 500`)
-- Show the time next to each message bubble
-- Let users pick a color theme (dark / light)
-
-**Intermediate**
-- Show a "Stranger is typing..." indicator using a `typing` socket event
-- Add an interest tag system — users enter topics they like, and the server matches people with shared tags
-- Add a message length limit on the server side (never trust the client alone)
-
-**Advanced**
-- Store chat logs temporarily in memory and let users download them
-- Add WebRTC video chat alongside the text chat
-- Deploy the app publicly using a service like Railway or Render so real strangers on the internet can connect
-
----
-
-## 15. Glossary
-
-| Term | Plain-English Definition |
-|------|--------------------------|
-| Backend | The code that runs on your computer/server, invisible to the user |
-| Frontend | The code that runs in the user's browser — HTML, CSS, JavaScript |
-| WebSocket | A permanent two-way connection between a browser and a server |
-| Socket.IO | A library that makes WebSockets easier to use, with automatic fallbacks |
-| Event | A named signal sent between the browser and server, with optional data |
-| Emit | To send an event |
-| Socket ID | A unique random string that identifies one user's connection |
-| Matchmaking | The logic that pairs two waiting users together |
-| Port | A numbered "door" on your computer that a server listens on |
-| `npm` | Node Package Manager — the tool that downloads libraries |
-| `node_modules` | The folder where npm puts downloaded libraries — never edit this manually |
-| Race condition | A bug caused by two things happening at nearly the same time in an unexpected order |
-| DOM | Document Object Model — the browser's internal representation of the HTML on screen |
-| `classList` | A JavaScript property that lets you add, remove, and toggle CSS classes on elements |
+> **Reminder of the mental model:**
+>
+> Server = hotel front desk, routing messages between rooms
+> Socket = the open phone line between one browser and the server
+> socket.id = that user's unique room key card
+> waitingUser = the bulletin board with one pin on it
+> emit = putting a message in someone's mailbox
+> on = checking your own mailbox whenever something arrives
